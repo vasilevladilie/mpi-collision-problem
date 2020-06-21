@@ -10,7 +10,7 @@
 
 #include "mpi.h"
 
-bool continueGatheringPossibleCollisions = false;
+bool detectCollisions = false;
 
 float GenerateNonNullRandomNumber()
 {
@@ -46,24 +46,24 @@ int main(int argc, char** argv)
   MPI_Comm_size(MPI_COMM_WORLD, &worldSize);
   MPI_Comm_rank(MPI_COMM_WORLD, &worldRank);
 
-  continueGatheringPossibleCollisions = true;
   float* objectsData = nullptr;
   float* readBuf = (float*)malloc(worldSize*4*sizeof(float));
 
   float* sphereSizes = new float[worldSize];
+  const float kSphereSizeProportion = 1.0/32.0;
   for (int i = 0; i < worldSize; ++i)
   {
-    sphereSizes[i] = GenerateNonNullRandomNumber() * 1/20; 
+    sphereSizes[i] = GenerateNonNullRandomNumber() * kSphereSizeProportion; 
   }
 
+  srand(time(NULL));
   auto collisionStart = std::chrono::high_resolution_clock::now();
-  while(continueGatheringPossibleCollisions)
+  detectCollisions = true;
+  while(detectCollisions)
   {
-    float myRankX(0), myRankY(0), myRankZ(0);
     if (worldRank == 0)
     {
       objectsData = new float[worldSize * 4];
-      srand(time(NULL));
       for (int i = 0; i < worldSize; ++i)
       {
 	float x = GenerateNonNullRandomNumber();
@@ -73,13 +73,6 @@ int main(int argc, char** argv)
 	objectsData[i*4 + 1] = x;
 	objectsData[i*4 + 2] = y;
 	objectsData[i*4 + 3] = z;
-
-	if (i == worldRank)
-	{
-	  myRankX = x;
-	  myRankY = y;
-	  myRankZ = z;
-        }
       }
     }
     float* objectData = new float[4];
@@ -87,10 +80,20 @@ int main(int argc, char** argv)
 
     MPI_Allgather(objectData, 4, MPI_FLOAT, readBuf, 4, MPI_FLOAT, MPI_COMM_WORLD);
 
+    float myRankX(0.0), myRankY(0.0), myRankZ(0.0);
+    myRankX = objectData[1];
+    myRankY = objectData[2];
+    myRankZ = objectData[3];
+    
     for (int i = 0, rank = 0; i < worldSize*4; i+=4, ++rank)
     {
       if (rank != worldRank)
       {
+	/**
+	 * \desc This code will detect the collision using formula: d1 <= r1 + r2, where
+	 * d1 is the euclidean distance between the origins of the two spheres and r1 + r2 
+	 * is the sum of the sphere's radiuses.
+	 */
 	float euclideanDistance = std::sqrt((myRankX - readBuf[i + 1]) * (myRankX - readBuf[i + 1]) +
 					    (myRankY - readBuf[i + 2]) * (myRankY - readBuf[i + 2]) +
 					    (myRankZ - readBuf[i + 3]) * (myRankZ - readBuf[i + 3])
@@ -101,7 +104,12 @@ int main(int argc, char** argv)
 	{
 	  auto pointOfCollision = std::chrono::high_resolution_clock::now();
 	  auto collisionTimestamp = std::chrono::duration_cast<std::chrono::microseconds>(pointOfCollision - collisionStart).count();
-	  printf("@%dus Sphere %d colided with sphere %d.\n", collisionTimestamp, rank, worldRank);
+	  printf("@%dus Sphere(%.5f, %.5f, %.5f, %.5f) %d colided with sphere(%.5f, %.5f, %.5f, %.5f) %d.\n",
+		 collisionTimestamp,
+		 readBuf[i], readBuf[i + 1], readBuf[i + 2], readBuf[i + 3],
+		 rank,
+		 sphereSizes[worldRank], myRankX, myRankY, myRankZ,
+		 worldRank);
 	  collisions.push_back(std::make_tuple(rank, worldRank));
 	}
       }	
