@@ -24,17 +24,6 @@ float GenerateNonNullRandomNumber()
   return x;
 }
 
-std::vector<std::tuple<int, int> > collisions;
-bool IsPreviouslyFoundCollision(int rank, int worldRank)
-{
-  for (int i = 0; i < collisions.size(); ++i)
-  {
-    if (std::get<0>(collisions[i]) == rank && std::get<1>(collisions[i]) == worldRank)
-      return true;
-  }
-  return false;
-}
-
 int main(int argc, char** argv)
 {
   MPI_Init(&argc, &argv);
@@ -100,7 +89,7 @@ int main(int argc, char** argv)
 					    );
 	float summedRadiuses = readBuf[i] + sphereSizes[worldRank];
 	
-	if (euclideanDistance <= summedRadiuses && !IsPreviouslyFoundCollision(rank, worldRank))
+	if (euclideanDistance <= summedRadiuses)
 	{
 	  auto pointOfCollision = std::chrono::high_resolution_clock::now();
 	  auto collisionTimestamp = std::chrono::duration_cast<std::chrono::microseconds>(pointOfCollision - collisionStart).count();
@@ -110,7 +99,6 @@ int main(int argc, char** argv)
 		 rank,
 		 sphereSizes[worldRank], myRankX, myRankY, myRankZ,
 		 worldRank);
-	  collisions.push_back(std::make_tuple(rank, worldRank));
 	}
       }	
     }
