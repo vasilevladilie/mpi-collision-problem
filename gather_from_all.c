@@ -11,7 +11,7 @@
 
 bool continueGatheringPossibleCollisions = false;
 
-float GenerateNonNullPrimeNumber()
+float GenerateNonNullRandomNumber()
 {
   const int kNumberOfDecimals = std::pow(10, 5);
   float x = 0.0;
@@ -52,7 +52,7 @@ int main(int argc, char** argv)
   float* sphereSizes = new float[worldSize];
   for (int i = 0; i < worldSize; ++i)
   {
-    sphereSizes[i] = GenerateNonNullPrimeNumber() * 1/20; 
+    sphereSizes[i] = GenerateNonNullRandomNumber() * 1/20; 
   }
 
   auto collisionStart = std::chrono::high_resolution_clock::now();
@@ -65,9 +65,9 @@ int main(int argc, char** argv)
       srand(time(NULL));
       for (int i = 0; i < worldSize; ++i)
       {
-	float x = GenerateNonNullPrimeNumber();
-	float y = GenerateNonNullPrimeNumber();
-	float z = GenerateNonNullPrimeNumber();
+	float x = GenerateNonNullRandomNumber();
+	float y = GenerateNonNullRandomNumber();
+	float z = GenerateNonNullRandomNumber();
 	objectsData[i*4] = sphereSizes[i];
 	objectsData[i*4 + 1] = x;
 	objectsData[i*4 + 2] = y;
