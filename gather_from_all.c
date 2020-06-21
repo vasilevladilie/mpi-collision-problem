@@ -1,4 +1,3 @@
-#include "mpi.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
@@ -8,6 +7,8 @@
 #include <tuple>
 #include <chrono>
 #include <iostream>
+
+#include "mpi.h"
 
 bool continueGatheringPossibleCollisions = false;
 
