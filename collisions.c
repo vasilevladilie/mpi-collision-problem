@@ -7,20 +7,34 @@
 #include <tuple>
 #include <chrono>
 #include <iostream>
+#include <limits.h>
 
 #include "mpi.h"
 
 bool detectCollisions = false;
+const float kNull = 0.0;
 
 float GenerateNonNullRandomNumber()
 {
   const int kNumberOfDecimals = std::pow(10, 5);
   float x = 0.0;
-  const float kNull = 0.0;
   while (kNull == x)
   {
     x = static_cast<float>(rand()%kNumberOfDecimals)/static_cast<float>(kNumberOfDecimals);
   }
+  return x;
+}
+
+float GenerateTrajectoryNextStep()
+{
+  const int kMaxStepSize = 10001;
+  const int kStepGranularity = std::pow(10, 5);
+  float x = 0.0;
+  while (kNull == x)
+  {
+    x = static_cast<float>(rand() % kMaxStepSize)/static_cast<float>(kStepGranularity);
+  }
+
   return x;
 }
 
@@ -48,32 +62,44 @@ int main(int argc, char** argv)
   srand(time(NULL));
   auto collisionStart = std::chrono::high_resolution_clock::now();
   detectCollisions = true;
+
+  if (!detectCollisions) return 0;
+  
+  if (worldRank == 0)
+  {
+    objectsData = new float[worldSize * 4];
+    for (int i = 0; i < worldSize; ++i)
+    {
+      float x = GenerateNonNullRandomNumber();
+      float y = GenerateNonNullRandomNumber();
+      float z = GenerateNonNullRandomNumber();
+      objectsData[i*4] = sphereSizes[i];
+      objectsData[i*4 + 1] = x;
+      objectsData[i*4 + 2] = y;
+      objectsData[i*4 + 3] = z;
+      }
+  }
+  float* objectData = new float[4];
+  /**
+     The Sphere size and location data will be scattered
+     and will be received by each processor according to their rank.
+     Each processor receives a chunk of data from the objectsData array.
+     After this call each of the processors will have a sphere with its location and size.
+     This first MPI call solves the problem of generating random number for the start locations
+     of the spheres.
+   */
+  MPI_Scatter(objectsData, 4, MPI_FLOAT, objectData, 4, MPI_FLOAT, 0, MPI_COMM_WORLD);
+
   while(detectCollisions)
   {
-    if (worldRank == 0)
-    {
-      objectsData = new float[worldSize * 4];
-      for (int i = 0; i < worldSize; ++i)
-      {
-	float x = GenerateNonNullRandomNumber();
-	float y = GenerateNonNullRandomNumber();
-	float z = GenerateNonNullRandomNumber();
-	objectsData[i*4] = sphereSizes[i];
-	objectsData[i*4 + 1] = x;
-	objectsData[i*4 + 2] = y;
-	objectsData[i*4 + 3] = z;
-      }
-    }
-    float* objectData = new float[4];
-    MPI_Scatter(objectsData, 4, MPI_FLOAT, objectData, 4, MPI_FLOAT, 0, MPI_COMM_WORLD);
-
     MPI_Allgather(objectData, 4, MPI_FLOAT, readBuf, 4, MPI_FLOAT, MPI_COMM_WORLD);
-
+    
     float myRankX(0.0), myRankY(0.0), myRankZ(0.0);
     myRankX = objectData[1];
     myRankY = objectData[2];
     myRankZ = objectData[3];
-    
+
+    bool collisionDetected = false;
     for (int i = 0, rank = 0; i < worldSize*4; i+=4, ++rank)
     {
       if (rank != worldRank)
@@ -99,8 +125,21 @@ int main(int argc, char** argv)
 		 rank,
 		 sphereSizes[worldRank], myRankX, myRankY, myRankZ,
 		 worldRank);
+	  collisionDetected = true;
 	}
       }	
+    }
+    if (collisionDetected)
+    {
+      objectData[1] = GenerateNonNullRandomNumber();
+      objectData[2] = GenerateNonNullRandomNumber();
+      objectData[3] = GenerateNonNullRandomNumber();      
+    }
+    else
+    {
+      objectData[1] += GenerateTrajectoryNextStep();
+      objectData[2] += GenerateTrajectoryNextStep();
+      objectData[3] += GenerateTrajectoryNextStep();
     }
   }
 
