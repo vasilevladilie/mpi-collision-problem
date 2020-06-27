@@ -46,7 +46,7 @@ int main(int argc, char** argv)
   if (argc >= 2)
     proportionDenominator = atof(argv[1]);
 
-  int iterationLength = 1000;
+  int iterationLength = INT_MAX;
   if (argc >= 3)
     iterationLength = atoi(argv[2]);
   
@@ -159,12 +159,15 @@ int main(int argc, char** argv)
     }
     if (stepCounter > iterationLength)
       detectCollisions = false;
+
+    ++stepCounter;
   }
 
   if (nullptr != readBuf) free(readBuf);
 
   delete[] objectsData;
 
+  MPI_Barrier(MPI_COMM_WORLD);
   MPI_Finalize();
 
   return 0;
