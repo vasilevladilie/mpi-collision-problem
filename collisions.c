@@ -42,6 +42,14 @@ int main(int argc, char** argv)
 {
   MPI_Init(&argc, &argv);
 
+  float proportionDenominator = 32.0;
+  if (argc >= 2)
+    proportionDenominator = atof(argv[1]);
+
+  int iterationLength = 1000;
+  if (argc >= 3)
+    iterationLength = atoi(argv[2]);
+  
   int worldSize = 0;
   int worldRank = 0;
   float objectParameters[4];
@@ -49,11 +57,18 @@ int main(int argc, char** argv)
   MPI_Comm_size(MPI_COMM_WORLD, &worldSize);
   MPI_Comm_rank(MPI_COMM_WORLD, &worldRank);
 
+  if (iterationLength <= 0)
+  {
+    MPI_Finalize();
+    printf("%d Spheres have no trajectory... exiting.\n", worldRank);
+    return EXIT_SUCCESS;
+  }
+  
   float* objectsData = nullptr;
   float* readBuf = (float*)malloc(worldSize*4*sizeof(float));
 
   float* sphereSizes = new float[worldSize];
-  const float kSphereSizeProportion = 1.0/32.0;
+  const float kSphereSizeProportion = 1.0/proportionDenominator;
   for (int i = 0; i < worldSize; ++i)
   {
     sphereSizes[i] = GenerateNonNullRandomNumber() * kSphereSizeProportion; 
@@ -90,6 +105,7 @@ int main(int argc, char** argv)
    */
   MPI_Scatter(objectsData, 4, MPI_FLOAT, objectData, 4, MPI_FLOAT, 0, MPI_COMM_WORLD);
 
+  int stepCounter = 0;
   while(detectCollisions)
   {
     MPI_Allgather(objectData, 4, MPI_FLOAT, readBuf, 4, MPI_FLOAT, MPI_COMM_WORLD);
@@ -141,6 +157,8 @@ int main(int argc, char** argv)
       objectData[2] += GenerateTrajectoryNextStep();
       objectData[3] += GenerateTrajectoryNextStep();
     }
+    if (stepCounter > iterationLength)
+      detectCollisions = false;
   }
 
   if (nullptr != readBuf) free(readBuf);
